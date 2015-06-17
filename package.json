@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "prepublish": "npm run build:browser",
+    "postinstall": "npm run build:browser",
     "build:browser": "browserify -d client/main.js -o public/bundle.js",
     "watch:browser": "watchify -v -d client/main.js -o public/bundle.js"
   },
