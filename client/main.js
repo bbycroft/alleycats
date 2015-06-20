@@ -1,3 +1,4 @@
+var util = require('util');
 var _ = require('lodash');
 var d3 = require('d3');
 
@@ -42,26 +43,23 @@ function Game(catXml) {
         .attr('width', self.width).attr('height', self.height);
 
     self.xScale = d3.scale.linear().domain([-8, 8]).range([0, self.width]);
-    self.yScale = d3.scale.linear().domain([-5, 5]).range([0, self.height]);
+    self.yScale = d3.scale.linear().domain([5, -5]).range([0, self.height]);
 
     var diceBox = self.svg.append('g')
         .attr('transform', 'translate(' + (self.width / 2) + ',60)');
 
     diceBox.append('rect')
-        .attr('width', 50)
+        .attr('width', 300)
         .attr('height', 50)
-        .attr('x', -25)
+        .attr('x', -150)
         .attr('y', -25)
         .style('fill', 'white')
         .style('stroke', 'black')
         .style('cursor', 'pointer')
-        .on('click', function () {
-            self.gameState.diceRoll = Math.floor(Math.random() * 6) + 1;
-            self.update();
-        });
+        .on('click', self.gameStateClicked.bind(self));
 
     diceBox.append('text')
-        .attr('id', 'diceRollText')
+        .attr('id', 'gameStateText')
         .attr('text-anchor', 'middle')
         .attr('dy', '.35em')
         .style('font-size', '200%')
@@ -110,11 +108,13 @@ function Game(catXml) {
 
     self.gameState = {
         cats: [],
+        catNextLocations: [],
         team_a: {},
         team_b: {},
         hoverCat: null,
         transitionLock: false,
         inGame: false,
+        noTurnPossible: false,
         currentTeam: null,
         diceRoll: 5,
     };
@@ -132,8 +132,8 @@ Game.prototype.update = function (firstRun) {
     var transitionTime = firstRun ? 0 : 300;
 
     // dice roll widget
-    self.svg.select('#diceRollText')
-        .text('' + this.gameState.diceRoll);
+    self.svg.select('#gameStateText')
+        .text(self.getGameStateText());
 
     // circles to land on
     var circlesJoin = self.svg.select('#game_circles')
@@ -172,14 +172,25 @@ Game.prototype.update = function (firstRun) {
                 return;
             }
 
+            if (self.gameState.currentTeam != d.cat.team) {
+                return;
+            }
+
             if (d.canMove) {
-                d.cat.loc = d.nextLocTarget;
+                self.gameState.hoverCat = null;
+                self.updatePotentialMovement();
+
+                self.moveCat(d.cat);
+                self.nextPlayer();
             }
             self.update();
+            self.updatePotentialMovement();
         })
         .on('mouseenter', function (d) {
-            self.gameState.hoverCat = d.cat;
-            self.updatePotentialMovement();
+            if (d.cat.team === self.gameState.currentTeam) {
+                self.gameState.hoverCat = d.cat;
+                self.updatePotentialMovement();
+            }
         })
         .on('mouseleave', function (d) {
             self.gameState.hoverCat = null;
@@ -187,6 +198,9 @@ Game.prototype.update = function (firstRun) {
         });
 
     catsJoin
+        .style('cursor', function (d) {
+            return (d.cat.team === self.gameState.currentTeam && d.canMove) ? 'pointer' : 'default';
+        })
         .transition().duration(transitionTime)
         .attr('transform', function (d) { return 'translate(' + self.xScale(d.x) + ',' + self.yScale(d.y) + ')'; });
 
@@ -196,6 +210,57 @@ Game.prototype.update = function (firstRun) {
     setTimeout(function () {
         self.gameState.transitionLock = false;
     }, transitionTime);
+};
+
+Game.prototype.startGame = function () {
+    var self = this;
+    self.gameState.inGame = true;
+    self.nextPlayer();
+};
+
+Game.prototype.moveCat = function (cat) {
+    var self = this;
+
+    var nextLoc = self.getNextLocation(cat, self.gameState.diceRoll);
+
+    if (nextLoc.catAtTarget) {
+        nextLoc.catAtTarget.loc = 'start';
+    }
+    cat.loc = nextLoc.target;
+};
+
+Game.prototype.nextPlayer = function () {
+    var self = this;
+    var nextTeam = 'a';
+    if (self.gameState.currentTeam === 'a') {
+        nextTeam = 'b';
+    }
+    self.gameState.currentTeam = nextTeam;
+    self.gameState.diceRoll = Math.floor(Math.random() * 6) + 1;
+};
+
+Game.prototype.gameStateClicked = function () {
+    var self = this;
+    if (!self.gameState.inGame) {
+        self.startGame();
+    } else if (self.gameState.noTurnPossible) {
+        self.nextPlayer();
+    }
+    self.update();
+};
+
+Game.prototype.getGameStateText = function () {
+    var self = this;
+
+    if (!self.gameState.inGame) {
+        return 'Click to Begin';
+    }
+
+    var result = util.format('Team %s rolled a %d',
+        self.gameState.currentTeam.toUpperCase(),
+        self.gameState.diceRoll);
+
+    return result;
 };
 
 Game.prototype.updatePotentialMovement = function () {
@@ -249,7 +314,7 @@ Game.prototype.getNextLocation = function (cat, numSteps) {
     var self = this;
 
     if (cat.loc === 'end') {
-        return { target: null, canMove: false, path: [] };
+        return { target: null, canMove: false, path: [], catAtTarget: null };
     }
 
     var trail = self.gameLayout['trail_' + cat.team];
@@ -271,10 +336,13 @@ Game.prototype.getNextLocation = function (cat, numSteps) {
     }
 
     if (endIndex >= trail.length) {
-        return { target: 'end', canMove: true, path: path };
+        return { target: 'end', canMove: true, path: path, catAtTarget: null };
     }
 
     var target = trail[endIndex];
-    var friendCatAtTarget = _.find(self.gameState.cats, { loc: target, team: cat.team });
-    return { target: target, canMove: !friendCatAtTarget, path: path };
+    var catAtTarget = _.find(self.gameState.cats, { loc: target }) || null;
+
+    var canMove = !catAtTarget || catAtTarget.team !== cat.team;
+
+    return { target: target, canMove: canMove, path: path, catAtTarget: catAtTarget };
 };
