@@ -4,16 +4,39 @@ var d3 = require('d3');
 document.addEventListener('DOMContentLoaded', create);
 
 function create() {
-    var game = new Game();
-    game.update(true);
+    d3.xml('cat_template.svg', 'image/svg+xml', function (xml) {
+        var catXml = xml.documentElement.getElementById('layer1');
+        walkDOM(catXml, function (node) {
+            if (!node.hasAttribute || !node.style) {
+                return;
+            }
+            if (node.hasAttribute('id')) {
+                node.removeAttribute('id');
+            }
+            if (d3.rgb(node.style.fill).toString() === '#ff7f2a') {
+                node.style.fill = '';
+            }
+        });
+        var game = new Game(catXml);
+        game.update(true);
+    });
 }
 
-function Game() {
+function walkDOM(node, func) {
+    func(node);
+    node = node.firstChild;
+    while (node) {
+        walkDOM(node, func);
+        node = node.nextSibling;
+    }
+};
+
+function Game(catXml) {
     var self = this;
 
     self.width = 700;
     self.height = 500;
-    self.firstRun = true;
+    self.catXml = catXml;
 
     self.svg = d3.select('#game_container')
         .attr('width', self.width).attr('height', self.height);
@@ -22,7 +45,7 @@ function Game() {
     self.yScale = d3.scale.linear().domain([-5, 5]).range([0, self.height]);
 
     var diceBox = self.svg.append('g')
-        .attr("transform", "translate(" + (self.width / 2) + ",60)");
+        .attr('transform', 'translate(' + (self.width / 2) + ',60)');
 
     diceBox.append('rect')
         .attr('width', 50)
@@ -89,9 +112,11 @@ function Game() {
         cats: [],
         team_a: {},
         team_b: {},
-        selectedCat: null,
+        hoverCat: null,
         transitionLock: false,
-        diceRoll: 1,
+        inGame: false,
+        currentTeam: null,
+        diceRoll: 5,
     };
 
     _.each(_.range(6), function (i) {
@@ -99,7 +124,7 @@ function Game() {
         self.gameState.cats.push({ id: 'b' + i, team: 'b', loc: 'start' });
     }, self);
 
-    self.update();
+    self.update(true);
 }
 
 Game.prototype.update = function (firstRun) {
@@ -111,7 +136,8 @@ Game.prototype.update = function (firstRun) {
         .text('' + this.gameState.diceRoll);
 
     // circles to land on
-    var circlesJoin = self.svg.selectAll('.game_circle')
+    var circlesJoin = self.svg.select('#game_circles')
+        .selectAll('.game_circle')
         .data(self.gameLayout.points, function (d) { return d.id; });
 
     circlesJoin.enter()
@@ -129,33 +155,40 @@ Game.prototype.update = function (firstRun) {
     // cats
     var catAdaptors = _.map(self.gameState.cats, this.catDisplayAdaptor.bind(this));
 
-    var catsJoin = self.svg.selectAll('.game_cat')
+    var catsJoin = self.svg.select('#game_cats')
+        .selectAll('.game_cat')
         .data(catAdaptors, function (d) { return d.id; });
 
-    catsJoin.enter()
-        .append('circle')
-        .attr('class', 'game_cat')
+    var catsEnter = catsJoin.enter()
+        .select(function() {
+            return this.appendChild(this.ownerDocument.importNode(self.catXml, true));
+        })
         .style('cursor', 'pointer')
-        .on('click', function (catAdaptor) {
+        .attr('class', function (d) {
+            return 'game_cat team_' + d.cat.team;
+        })
+        .on('click', function (d) {
             if (self.gameState.transitionLock) {
                 return;
             }
 
-            self.gameState.selectedCat = catAdaptor.id;
-
-            if (catAdaptor.canMove) {
-                catAdaptor.cat.loc = catAdaptor.nextLocTarget;
+            if (d.canMove) {
+                d.cat.loc = d.nextLocTarget;
             }
             self.update();
+        })
+        .on('mouseenter', function (d) {
+            self.gameState.hoverCat = d.cat;
+            self.updatePotentialMovement();
+        })
+        .on('mouseleave', function (d) {
+            self.gameState.hoverCat = null;
+            self.updatePotentialMovement();
         });
 
     catsJoin
         .transition().duration(transitionTime)
-        .style('fill', function (d) { return d.color.darker(0.5); })
-        .style('stroke', function (d) { return d.color.darker(1); })
-        .attr('r', 10)
-        .attr('cx', function (d) { return self.xScale(d.x); })
-        .attr('cy', function (d) { return self.yScale(d.y); });
+        .attr('transform', function (d) { return 'translate(' + self.xScale(d.x) + ',' + self.yScale(d.y) + ')'; });
 
     catsJoin.exit().remove();
 
@@ -163,6 +196,24 @@ Game.prototype.update = function (firstRun) {
     setTimeout(function () {
         self.gameState.transitionLock = false;
     }, transitionTime);
+};
+
+Game.prototype.updatePotentialMovement = function () {
+    var self = this;
+
+    var lineGen = d3.svg.line()
+            .x(function (d) { return self.xScale(d.x); })
+            .y(function (d) { return self.yScale(d.y); });
+
+    if (self.gameState.hoverCat) {
+        var nextLoc = self.getNextLocation(self.gameState.hoverCat, self.gameState.diceRoll);
+        self.svg.select('#potential_path')
+            .attr('d', lineGen(nextLoc.path))
+            .attr('stroke', nextLoc.canMove ? '#00a600' : '#535353')
+    }
+
+    self.svg.select('#potential_path')
+        .attr('opacity', self.gameState.hoverCat ? 1.0 : 0.0);
 };
 
 Game.prototype.catDisplayAdaptor = function (cat) {
@@ -198,19 +249,32 @@ Game.prototype.getNextLocation = function (cat, numSteps) {
     var self = this;
 
     if (cat.loc === 'end') {
-        return { target: null, canMove: false };
+        return { target: null, canMove: false, path: [] };
     }
 
     var trail = self.gameLayout['trail_' + cat.team];
 
     // using indexOf == -1 if at start
-    var targetTrailIndex = _.indexOf(trail, cat.loc) + numSteps;
+    var startIndex = _.indexOf(trail, cat.loc);
+    var endIndex = startIndex + numSteps;
 
-    if (targetTrailIndex >= trail.length) {
-        return { target: 'end', canMove: true };
+    var path = [];
+    for (var i = startIndex; i <= endIndex; i++) {
+        if (i == -1) {
+            path.push(_.find(self.gameLayout.endpoints, { loc: 'start', team: cat.team }));
+        } else if (i < trail.length) {
+            path.push(_.find(self.gameLayout.points, { id: trail[i] }));
+        } else {
+            path.push(_.find(self.gameLayout.endpoints, { loc: 'end', team: cat.team }));
+            break;
+        }
     }
 
-    var target = trail[targetTrailIndex];
+    if (endIndex >= trail.length) {
+        return { target: 'end', canMove: true, path: path };
+    }
+
+    var target = trail[endIndex];
     var friendCatAtTarget = _.find(self.gameState.cats, { loc: target, team: cat.team });
-    return { target: target, canMove: !friendCatAtTarget };
+    return { target: target, canMove: !friendCatAtTarget, path: path };
 };

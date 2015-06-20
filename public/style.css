@@ -4,3 +4,17 @@
     stroke: steelblue;
     stroke-width: 2;
 }
+
+#potential_path {
+    stroke-width: 15;
+    stroke-opacity: 0.6;
+    fill: none;
+}
+
+.game_cat.team_a * {
+    fill: blue;
+}
+
+.game_cat.team_b * {
+    fill: red;
+}
