@@ -31,9 +31,8 @@
     stroke-width: 2;
 }
 
-#potentialPath {
-    stroke-width: 15;
-    stroke-opacity: 0.6;
+.potentialPath > path,circle {
+    stroke-width: 10;
     fill: none;
 }
 

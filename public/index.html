@@ -14,9 +14,13 @@
         <div id="textContainer" class="gameLayer">
             <div id="gameStateText"></div>
         </div>
+        <svg id="potentialPaths" class="gameLayer" viewBox="0,0,700,500"></svg>
         <svg id="gameCats" class="gameLayer" viewBox="0,0,700,500"></svg>
     </div>
     <svg id="svgDefs" width="0" height="0">
+        <filter id="gauss4">
+            <feGaussianBlur in="SourceGraphic" stdDeviation="0.5" />
+        </filter>
         <defs></defs>
     </svg>
 </body>
