@@ -55,7 +55,7 @@ GameState.prototype.getWinningTeam = function () {
     var self = this;
     var winningTeam = null;
     _.each(self.teams, function (team) {
-        var catsOnTeam = _.find(self.cats, { team: team });
+        var catsOnTeam = _.where(self.cats, { team: team });
         if (_.every(catsOnTeam, { loc: 'end' })) {
             winningTeam = team;
         }

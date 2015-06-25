@@ -178,7 +178,7 @@ GameController.prototype._getCatAdaptor = function (cats, cat, nextMove, catsAtL
         cat: cat,
         x: target.x,
         y: target.y + offset,
-        canMove: nextMove ? nextMove.canMove : false,
+        canMove: (self.mode === 'player_turn' && nextMove) ? nextMove.canMove : false,
         path: self.getPathCoords(cat, (nextMove && index == 0) ? nextMove.path : []),
         isHover: cat.id === self.hoverCat,
     };
@@ -251,7 +251,6 @@ function GameView(sprites) {
         .data(sprites)
         .enter()
         .select(function (d) {
-            console.log(d);
             return this.appendChild(this.ownerDocument.importNode(d.dom, true));
         });
 
@@ -284,7 +283,6 @@ GameView.prototype.updateCatLocations = function (viewState) {
     var catsEnter = catsJoin.enter()
         .append('use')
         .attr('xlink:href', function (d) { return '#cat_' + d.cat.team; })
-        .style('cursor', 'pointer')
         .attr('class', 'gameCat')
         .on('click', self.emit.bind(self, 'catClicked'))
         .on('mouseenter', self.emit.bind(self, 'catHover', true))
@@ -306,8 +304,6 @@ GameView.prototype.updatePathHighlights = function (viewState) {
     var adaptorsWithPath = _.filter(viewState.catAdaptors, function (adaptor) {
         return adaptor.path.length > 0;
     });
-
-    console.log('adaptorsWithPath', adaptorsWithPath);
 
     var lineGen = d3.svg.line()
         .x(function (d) { return self.xScale(d.x); })
@@ -349,6 +345,10 @@ GameView.prototype.getGameStateText = function (viewState) {
 
     if (viewState.mode === 'start_page') {
         return 'Click to Begin';
+    }
+
+    if (viewState.mode === 'player_win') {
+        return util.format('Team %s WON', viewState.winningTeam.toUpperCase());
     }
 
     return util.format('Team %s rolled a %d',
