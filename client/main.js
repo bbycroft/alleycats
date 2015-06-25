@@ -39,7 +39,7 @@ function GameController(view) {
     self.diceRoll = 5;
 
     self.gameSettings = {
-        numCats: 1,
+        numCats: 6,
         trails: {
             'a': ['a0', 'a1', 'a2', 'c0', 'c1', 'c2', 'c3', 'c4', 'a3', 'a4', 'a5'],
             'b': ['b0', 'b1', 'b2', 'c0', 'c1', 'c2', 'c3', 'c4', 'b3', 'b4', 'b5'],
@@ -181,6 +181,7 @@ GameController.prototype._getCatAdaptor = function (cats, cat, nextMove, catsAtL
         canMove: (self.mode === 'player_turn' && nextMove) ? nextMove.canMove : false,
         path: self.getPathCoords(cat, (nextMove && index == 0) ? nextMove.path : []),
         isHover: cat.id === self.hoverCat,
+        highlightColor: cat.team === 'a' ? '#ff5555' : '#2ca02c',
     };
 };
 
@@ -320,7 +321,7 @@ GameView.prototype.updatePathHighlights = function (viewState) {
         .append('g')
         .attr('class', 'potentialPath')
         .attr('filter', 'url(#gauss4)')
-        .style('stroke', function (d) { return d.canMove ? '#21c621' : '#747474'; })
+        .style('stroke', function (d) { return d.canMove ? d.highlightColor : '#747474'; })
         .style('stroke-opacity', '0.0');
 
     pathsEnter.append('path')
