@@ -21,7 +21,8 @@
     "compression": "~1.5.0",
     "d3": "~3.5.5",
     "express": "~4.9.x",
-    "lodash": "~3.9.3"
+    "lodash": "~3.9.3",
+    "when": "~3.7.3"
   },
   "devDependencies": {
     "watchify": "~3.2.2"

@@ -1,20 +1,44 @@
 
-.game_circle {
+#gameArea {
+    width: 700px;
+    height: 500px;
+    border: black 1px solid;
+}
+
+.gameLayer {
+    position: absolute;
+    width: inherit;
+    height: inherit;
+    pointer-events: none;
+}
+
+#textContainer {
+    text-align: center;
+    pointer-events: all;
+}
+
+#gameStateText {
+    display: inline-block;
+    margin-top: 20px;
+    width: 300px;
+    padding: 2px;
+    border: blue 1px solid;
+}
+
+.gameCircle {
     fill: lightsteelblue;
     stroke: steelblue;
     stroke-width: 2;
 }
 
-#potential_path {
+#potentialPath {
     stroke-width: 15;
     stroke-opacity: 0.6;
     fill: none;
 }
 
-.game_cat.team_a * {
-    fill: blue;
+.gameCat {
+    position: absolute;
+    pointer-events: all;
 }
 
-.game_cat.team_b * {
-    fill: red;
-}

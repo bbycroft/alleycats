@@ -9,13 +9,15 @@
 <body>
     <h1>Alley Cats</h1>
     <p>Click on a cat to move it to a random location</p>
-    <svg xmlns="http://www.w3.org/2000/svg" id="game_container">
-        <filter id="potential_path_blur">
-            <feGaussianBlur stdDeviation="5" />
-        </filter>
-        <g id="game_circles"></g>
-        <path id="potential_path" filter="url(&quot;#potential_path_blur&quot;)"></path>
-        <g id="game_cats"></g>
+    <div id="gameArea">
+        <svg id="gameCircles" class="gameLayer" viewBox="0,0,700,500"></svg>
+        <div id="textContainer" class="gameLayer">
+            <div id="gameStateText"></div>
+        </div>
+        <svg id="gameCats" class="gameLayer" viewBox="0,0,700,500"></svg>
+    </div>
+    <svg id="svgDefs" width="0" height="0">
+        <defs></defs>
     </svg>
 </body>
 </html>
